@@ -4,18 +4,46 @@
 #include <unistd.h>
 #include <sys/types.h>
 
-int socket_version();
+typedef struct {
+    struct addrinfo *address;
+} SocketAddress;
 
-int socket_listen(char *service);
+typedef struct {
+    int sockfd;
+    int domain;
+    int type;
+} Socket;
 
-int socket_connect(const char *hostname, char *service);
+enum {
+    TYPE_NONE,
+    TYPE_TCP,
+    TYPE_UDP
+};
 
-int socket_accept(int sock);
+enum {
+    DOMAIN_NONE,
+    DOMAIN_IPV4,
+    DOMAIN_IPV6
+};
 
-int socket_close(int sock);
+int socket_address(SocketAddress *a, const char *hostname, int domain, int type);
 
-ssize_t socket_receive(int sock, char *buf, size_t size, int flags);
+void socket_address_print(const SocketAddress *address);
 
-ssize_t socket_send(int sock, const char *data, size_t size, int flags);
+void socket_address_free(SocketAddress *address);
+
+int socket_create(Socket *socket, int domain, int type);
+
+int socket_timeout(Socket *socket, int sec);
+
+int socket_listen(Socket *socket, const char *service, int backlog);
+
+int socket_connect(Socket *socket, const char *hostname, const char *service);
+
+int socket_close(Socket *socket);
+
+ssize_t socket_receive(Socket *socket, char *buf, size_t size, int flags);
+
+ssize_t socket_send(Socket *socket, const char *data, size_t size, int flags);
 
 #endif
