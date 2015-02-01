@@ -57,7 +57,7 @@ int socket_address(SocketAddress *a, const char *hostname, int domain, int type)
     hints.ai_socktype = socktype;
 
     if ((ret = getaddrinfo(hostname, NULL, &hints, &a->address)) != 0) {
-        printf("socket_connect() -> getaddrinfo(): %s\n", gai_strerror(ret));
+        printf("socket_address() -> getaddrinfo(): %s\n", gai_strerror(ret));
         return -1;
     }
 
@@ -159,7 +159,7 @@ int socket_timeout(Socket *s, int sec) {
     return 0;
 }
 
-int socket_listen(Socket *s, const char *service, int backlog) {
+int socket_bind(Socket *s, const char *service) {
     int ret;
     struct addrinfo hints, *serverAddress;
 
@@ -168,21 +168,26 @@ int socket_listen(Socket *s, const char *service, int backlog) {
     hints.ai_socktype = s->type;
 
     if ((ret = getaddrinfo(NULL, service, &hints, &serverAddress)) != 0) {
-        printf("socket_listen() -> getaddrinfo(): %s\n", gai_strerror(ret));
+        printf("socket_bind() -> getaddrinfo(): %s\n", gai_strerror(ret));
         return -1;
     }
 
     if (bind(s->sockfd, serverAddress->ai_addr, serverAddress->ai_addrlen) < 0) {
-        perror("socket_listen() -> bind()");
-        return -1;
-    }
-
-    if (listen(s->sockfd, backlog) < 0) {
-        perror("socket_listen() -> listen()");
+        perror("socket_bind() -> bind()");
+        freeaddrinfo(serverAddress);
         return -1;
     }
 
     freeaddrinfo(serverAddress);
+
+    return 0;
+}
+
+int socket_listen(Socket *s, int backlog) {
+    if (listen(s->sockfd, backlog) < 0) {
+        perror("socket_listen() -> listen()");
+        return -1;
+    }
 
     return 0;
 }
@@ -231,7 +236,7 @@ int socket_connect(Socket *s, const char *hostname, const char *service) {
 }
 
 int socket_close(Socket *s) {
-    if (shutdown(s->sockfd, SHUT_RDWR) < 0) {
+    if (s->type == TYPE_TCP && shutdown(s->sockfd, SHUT_RDWR) < 0) {
         perror("socket_close() -> shutdown()");
         return -1;
     }
@@ -260,6 +265,34 @@ ssize_t socket_send(Socket *s, const char *data, size_t size, int flags) {
 
     if ((sendSize = send(s->sockfd, data, size, flags)) < 0) {
         perror("socket_send() -> send()");
+        return -1;
+    }
+
+    return sendSize;
+}
+
+ssize_t socket_recvfrom(Socket *s, void *buf, size_t size, int flags, struct sockaddr *address, socklen_t *address_len) {
+    ssize_t receiveSize;
+
+    if (address == NULL || address_len == NULL) {
+        receiveSize = recvfrom(s->sockfd, buf, size, flags, NULL, NULL);
+    } else {
+        receiveSize = recvfrom(s->sockfd, buf, size, flags, address, address_len);
+    }
+
+    if (receiveSize < 0) {
+        perror("socket_recvfrom() -> recv()");
+        return -1;
+    }
+
+    return receiveSize;
+}
+
+ssize_t socket_sendto(Socket *s, const void *data, size_t size, int flags, SocketAddress *address) {
+    ssize_t sendSize;
+
+    if ((sendSize = sendto(s->sockfd, data, size, flags, address->address->ai_addr, address->address->ai_addrlen)) < 0) {
+        perror("socket_sendto() -> send()");
         return -1;
     }
 
